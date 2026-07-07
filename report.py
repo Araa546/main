@@ -14,7 +14,7 @@ FILE_CONFIG = "config.json"
 DEVELOPER_ID = 1008449341
 DEFAULT_PASSWORD = "hanania123"
 BOT_NAME = "BOT HANANIA REPORT"
-CURRENT_VERSION = "V8.5"
+CURRENT_VERSION = "V8.7"
 TIMEZONE = pytz.timezone("Asia/Jakarta")
 
 URL_VERSION = "https://raw.githubusercontent.com/Araa546/main/refs/heads/main/version.txt"
@@ -67,67 +67,83 @@ def is_maintenance():
 async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id!= DEVELOPER_ID: return
     msg = update.message or update.callback_query.message
-    await msg.reply_text("⏳ Download update dari github...")
+    await msg.reply_text("⏳ Baixando atualização do github...")
     try:
         r = requests.get(URL_REPORT, timeout=10)
         with open("report.py", "w", encoding="utf-8") as f: f.write(r.text)
-        await msg.reply_text("✅ Update selesai! Restart bot...")
+        await msg.reply_text("✅ Atualização concluída! Reiniciando bot...")
         os.execv(sys.executable, ['python'] + sys.argv)
-    except Exception as e: await msg.reply_text(f"❌ Gagal update: {e}")
+    except Exception as e: await msg.reply_text(f"❌ Falha ao atualizar: {e}")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config = load_config()
+
+    # MAINTENANCE BAHASA PORTUGIS
     if is_maintenance() and update.effective_user.id!= DEVELOPER_ID:
-        await update.message.reply_text("🛠️ Bot sedang maintenance\nJam: 23.00 - 08.00 WIB")
+        await update.message.reply_text("🛠️ BOT HANANIA ESTÁ EM MANUTENÇÃO\n\nPor favor, volte às 08:00 WIB\nObrigado 🙏")
         return ConversationHandler.END
+
     if update.effective_user.id in config.get("banned", []):
         await update.message.reply_text("🚫 Você foi banido."); return ConversationHandler.END
+
     try:
         await update.message.reply_photo(photo=config["foto_url"], caption=f"🔒 <b>{BOT_NAME} {CURRENT_VERSION}</b>\n\nEste Bot é Privado", parse_mode='HTML')
         await update.message.reply_audio(audio=config["audio_url"])
     except: pass
-    await update.message.reply_text("Digite a Senha untuk continuar:")
+
+    await update.message.reply_text("Digite a Senha para continuar:")
     return LOGIN
 
 async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config = load_config()
     password = update.message.text
     if hash_password(password) == config["bot_password_hash"]:
-        keyboard = [[InlineKeyboardButton("📨 Send Report", callback_data='menu_send')]]
+
+        # BUTTON LEBIH BAGUS 2 KOLOM PT-BR
+        keyboard = [
+            [InlineKeyboardButton("📨 Enviar Relatório", callback_data='menu_send'), InlineKeyboardButton("⚙️ Configurações", callback_data='menu_settings')],
+            [InlineKeyboardButton("📊 Status do Bot", callback_data='menu_status')]
+        ]
         if update.effective_user.id == DEVELOPER_ID:
-            keyboard.append([InlineKeyboardButton("👑 OWNER PANEL", callback_data='owner_panel')])
-        await update.message.reply_text("✅ Login berhasil!", reply_markup=InlineKeyboardMarkup(keyboard))
+            keyboard.append([InlineKeyboardButton("👑 PAINEL DO DONO", callback_data='owner_panel')])
+
+        await update.message.reply_text(f"✅ Login bem-sucedido!\nBem-vindo ao {BOT_NAME}", reply_markup=InlineKeyboardMarkup(keyboard))
         return ConversationHandler.END
     else:
-        await update.message.reply_text("❌ Senha salah. Coba lagi:"); return LOGIN
+        await update.message.reply_text("❌ Senha incorreta. Tente novamente:"); return LOGIN
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query; await query.answer(); user_id = query.from_user.id
+
     if query.data == 'owner_panel' and user_id == DEVELOPER_ID:
-        keyboard = [[InlineKeyboardButton("🔄 Update Bot", callback_data='update_bot')],
-                    [InlineKeyboardButton("📷 Ganti Foto GLOBAL", callback_data='ganti_foto')],
-                    [InlineKeyboardButton("🎵 Ganti Audio GLOBAL", callback_data='ganti_audio')]]
-        await query.edit_message_text("👑 OWNER PANEL\n\nNote: Ganti foto/audio berlaku untuk SEMUA USER", reply_markup=InlineKeyboardMarkup(keyboard))
+        keyboard = [
+            [InlineKeyboardButton("🔄 Atualizar Bot", callback_data='update_bot'), InlineKeyboardButton("📷 Alterar Foto", callback_data='ganti_foto')],
+            [InlineKeyboardButton("🎵 Alterar Áudio", callback_data='ganti_audio'), InlineKeyboardButton("⬅️ Voltar", callback_data='back_menu')]
+        ]
+        await query.edit_message_text("👑 PAINEL DO DONO\n\nAlterar foto/áudio afeta TODOS OS USUÁRIOS", reply_markup=InlineKeyboardMarkup(keyboard))
+
     elif query.data == 'update_bot' and user_id == DEVELOPER_ID: await update_bot(update, context)
     elif query.data == 'ganti_foto' and user_id == DEVELOPER_ID:
-        await query.edit_message_text("📷 Kirim foto baru. Berlaku untuk semua user:"); return GANTI_FOTO
+        await query.edit_message_text("📷 Envie a nova foto. Afeta todos os usuários:"); return GANTI_FOTO
     elif query.data == 'ganti_audio' and user_id == DEVELOPER_ID:
-        await query.edit_message_text("🎵 Kirim audio baru. Berlaku untuk semua user:"); return GANTI_AUDIO
+        await query.edit_message_text("🎵 Envie o novo áudio. Afeta todos os usuários:"); return GANTI_AUDIO
+    elif query.data == 'back_menu':
+        await query.edit_message_text("Menu Principal:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📨 Enviar Relatório", callback_data='menu_send')]]))
 
 async def ganti_foto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id!= DEVELOPER_ID: return ConversationHandler.END
     photo = update.message.photo[-1]; file = await photo.get_file(); url = file.file_path
     config = load_config(); config["foto_url"] = url; save_config(config)
-    await update.message.reply_text("✅ Foto GLOBAL berhasil diganti!"); return ConversationHandler.END
+    await update.message.reply_text("✅ Foto GLOBAL alterada com sucesso!"); return ConversationHandler.END
 
 async def ganti_audio_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id!= DEVELOPER_ID: return ConversationHandler.END
     audio = update.message.audio or update.message.document; file = await audio.get_file(); url = file.file_path
     config = load_config(); config["audio_url"] = url; save_config(config)
-    await update.message.reply_text("✅ Audio GLOBAL berhasil diganti!"); return ConversationHandler.END
+    await update.message.reply_text("✅ Áudio GLOBAL alterado com sucesso!"); return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ Dibatalkan."); context.user_data.clear(); return ConversationHandler.END
+    await update.message.reply_text("❌ Cancelado."); context.user_data.clear(); return ConversationHandler.END
 
 async def update_bot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE): await update_bot(update, context)
 
@@ -141,6 +157,6 @@ def main():
                 GANTI_AUDIO: [MessageHandler(filters.AUDIO | filters.Document.AUDIO, ganti_audio_handler)]},
         fallbacks=[CommandHandler('cancel', cancel)])
     app.add_handler(conv_login); app.add_handler(CallbackQueryHandler(button_handler))
-    print(f"{BOT_NAME} {CURRENT_VERSION} Jalan..."); app.run_polling(drop_pending_updates=True)
+    print(f"{BOT_NAME} {CURRENT_VERSION} Rodando..."); app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__": main()
