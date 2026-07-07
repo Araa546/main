@@ -18,13 +18,12 @@ DEVELOPER_NAME = "@nanialagibobo"
 DEVELOPER_ID = 1008449341
 DEFAULT_PASSWORD = "hanania123"
 BOT_NAME = "BOT HANANIA REPORT"
-CURRENT_VERSION = "V7.8.2"
+CURRENT_VERSION = "V7.8.3"
 
-# INI LINK YANG BENER BUAT KAMU
 URL_VERSION = "https://raw.githubusercontent.com/Araa546/main/refs/heads/main/version.txt"
 URL_REPORT = "https://raw.githubusercontent.com/Araa546/main/refs/heads/main/report.py"
 
-LOGIN, MT, EMAIL, PASSWORD, ADD_EMAIL, GANTI_FOTO, GANTI_AUDIO = range(7)
+LOGIN, MT, EMAIL, PASSWORD, ADD_EMAIL, GANTI_FOTO, GANTI_AUDIO, MAINTENANCE = range(8)
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -38,6 +37,7 @@ def load_config():
         "whitelist": [1008449341, DEVELOPER_ID],
         "banned": [],
         "version": CURRENT_VERSION,
+        "maintenance": False,
         "groups": {
             "BR": [
                 {"email": "informationsecurity@blackrock.com", "subject": "Report of Telegram Account Impersonating BlackRock Support"},
@@ -64,24 +64,6 @@ def save_config(data):
     with open(FILE_CONFIG, 'w') as f:
         json.dump(data, f, indent=2)
 
-async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id!= DEVELOPER_ID:
-        await update.message.reply_text("❌ Hanya owner")
-        return
-    await update.message.reply_text("⏳ Download update dari github...")
-    try:
-        r = requests.get(URL_REPORT, timeout=10)
-        if r.status_code!= 200:
-            await update.message.reply_text(f"❌ Gagal: HTTP {r.status_code}")
-            return
-        with open("report.py", "w", encoding="utf-8") as f:
-            f.write(r.text)
-        await update.message.reply_text("✅ Update selesai! Restart bot...")
-        os.execv(sys.executable, ['python'] + sys.argv)
-    except Exception as e:
-        await update.message.reply_text(f"❌ Gagal update: {e}")
-
-# Sisa handler sama kayak sebelumnya...
 def premium_emoji(text):
     return f'&#{PREMIUM_EMOJI_ID};{text}'
 
@@ -101,6 +83,25 @@ def check_update():
         pass
     return None
 
+async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id!= DEVELOPER_ID:
+        msg = update.message or update.callback_query.message
+        await msg.reply_text("❌ Hanya owner")
+        return
+    msg = update.message or update.callback_query.message
+    await msg.reply_text("⏳ Download update dari github...")
+    try:
+        r = requests.get(URL_REPORT, timeout=10)
+        if r.status_code!= 200:
+            await msg.reply_text(f"❌ Gagal: HTTP {r.status_code}")
+            return
+        with open("report.py", "w", encoding="utf-8") as f:
+            f.write(r.text)
+        await msg.reply_text("✅ Update selesai! Restart bot...")
+        os.execv(sys.executable, ['python'] + sys.argv)
+    except Exception as e:
+        await msg.reply_text(f"❌ Gagal update: {e}")
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ Dibatalkan.")
     context.user_data.clear()
@@ -108,6 +109,9 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config = load_config()
+    if config.get("maintenance") and update.effective_user.id!= DEVELOPER_ID:
+        await update.message.reply_text("🛠️ Bot sedang maintenance")
+        return ConversationHandler.END
     if update.effective_user.id in config.get("banned", []):
         await update.message.reply_text("🚫 Você foi banido.")
         return ConversationHandler.END
@@ -137,35 +141,31 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     config = load_config()
     user_id = query.from_user.id
-    
+
     if query.data == 'owner_panel' and user_id == DEVELOPER_ID:
         keyboard = [[InlineKeyboardButton("🔄 Update Bot", callback_data='update_bot')],
                     [InlineKeyboardButton("📷 Ganti Foto", callback_data='ganti_foto')],
                     [InlineKeyboardButton("🎵 Ganti Audio", callback_data='ganti_audio')],
+                    [InlineKeyboardButton("🛠️ Maintenance", callback_data='maintenance')],
                     [InlineKeyboardButton("⬅️ Back", callback_data='back_menu')]]
         await query.edit_message_text("👑 OWNER PANEL", reply_markup=InlineKeyboardMarkup(keyboard))
-    
+
     elif query.data == 'update_bot' and user_id == DEVELOPER_ID:
-        await query.edit_message_text("⏳ Download update dari github...")
-        try:
-            r = requests.get(URL_REPORT, timeout=10)
-            if r.status_code!= 200:
-                await query.edit_message_text(f"❌ Gagal: HTTP {r.status_code}")
-                return
-            with open("report.py", "w", encoding="utf-8") as f:
-                f.write(r.text)
-            await query.edit_message_text("✅ Update selesai! Restart bot...")
-            os.execv(sys.executable, ['python'] + sys.argv)
-        except Exception as e:
-            await query.edit_message_text(f"❌ Gagal update: {e}")
-    
+        await update_bot(update, context)
+
     elif query.data == 'ganti_foto':
         await query.edit_message_text("📷 Kirim foto baru:")
         return GANTI_FOTO
-    
+
     elif query.data == 'ganti_audio':
         await query.edit_message_text("🎵 Kirim file audio baru:")
         return GANTI_AUDIO
+
+    elif query.data == 'maintenance':
+        config["maintenance"] = not config["maintenance"]
+        status = "ON" if config["maintenance"] else "OFF"
+        save_config(config)
+        await query.edit_message_text(f"🛠️ Maintenance: {status}")
 
     elif query.data == 'back_menu':
         keyboard = [[InlineKeyboardButton("📨 Send Report", callback_data='menu_send')],
@@ -200,7 +200,7 @@ async def update_bot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler('update', update_bot_cmd))
-    
+
     conv_login = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -212,7 +212,7 @@ def main():
     )
     app.add_handler(conv_login)
     app.add_handler(CallbackQueryHandler(button_handler))
-    
+
     print(f"{BOT_NAME} {CURRENT_VERSION} Jalan...")
     app.run_polling(drop_pending_updates=True)
 
