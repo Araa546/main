@@ -70,7 +70,6 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.delete()
 
     if hash_password(password) == config["bot_password_hash"]:
-        # BUTTON BARU LEBIH BAGUS
         keyboard = [
             [InlineKeyboardButton("📨 Kirim Laporan", callback_data='menu_send')],
             [InlineKeyboardButton("➕ Tambah Sender", callback_data='add_sender'), InlineKeyboardButton("📋 Sender Saya", callback_data='my_senders')],
@@ -79,12 +78,15 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_user.id == DEVELOPER_ID:
             keyboard.append([InlineKeyboardButton("👑 PANEL OWNER ✨", callback_data='owner_panel')])
 
+        username = update.effective_user.username or "User"
         try:
+            # FOTO ANTI SAVE + TAG FAKE
             await update.message.reply_photo(
                 photo=config["foto_url"],
-                caption=f"✨ <b>{BOT_NAME} {CURRENT_VERSION}</b> ✨\n\n👋 Selamat Datang\nSilakan pilih menu dibawah:",
+                caption=f"✨ <b>{BOT_NAME} {CURRENT_VERSION}</b> ✨\n\n👋 Selamat Datang @{username}\nID: <code>{update.effective_user.id}</code>\n\nSilakan pilih menu dibawah:",
                 parse_mode='HTML',
-                reply_markup=InlineKeyboardMarkup(keyboard)
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                protect_content=True # GABISA DI SAVE/FORWARD
             )
             await asyncio.sleep(0.3)
             await update.message.reply_audio(audio=config["audio_url"])
@@ -93,13 +95,16 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ Kata sandi salah. Ketik /start untuk coba lagi"); return ConversationHandler.END
 
-# INI COMMAND BARU /addemail
+# FIX ADD EMAIL
 async def add_email_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📧 <b>Langkah 1/2</b>\n\nKirim Email kamu dulu:", parse_mode='HTML')
     return ADD_EMAIL
 
 async def add_email_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     email = update.message.text
+    if "@" not in email:
+        await update.message.reply_text("❌ Format email salah. Kirim ulang:")
+        return ADD_EMAIL
     context.user_data['temp_email'] = email
     await update.message.reply_text(f"✅ Email: <code>{email}</code>\n\n📧 <b>Langkah 2/2</b>\n\nSekarang kirim App Password nya:", parse_mode='HTML')
     return ADD_PASS
@@ -107,14 +112,13 @@ async def add_email_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def add_pass_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     app_pass = update.message.text
     email = context.user_data['temp_email']
-    gabungan = f"{email}|{app_pass}"
 
     config = load_config()
     config["senders"][email] = app_pass
     save_config(config)
 
     await update.message.delete() # hapus password
-    await update.message.reply_text(f"✅ <b>Sender Berhasil Ditambahkan!</b>\n\nEmail: <code>{email}</code>\nStatus: Aktif", parse_mode='HTML')
+    await update.message.reply_text(f"✅ <b>Sender Berhasil Ditambahkan!</b>\n\nEmail: <code>{email}</code>\nStatus: Aktif\n\nGunakan /start untuk ke menu", parse_mode='HTML')
     return ConversationHandler.END
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -191,7 +195,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler('update', update_bot_cmd))
-    app.add_handler(CommandHandler('addemail', add_email_start)) # DAFTAR COMMAND BARU
+    app.add_handler(CommandHandler('addemail', add_email_start))
 
     conv = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
@@ -200,7 +204,7 @@ def main():
             KIRIM_REPORT: [MessageHandler(filters.TEXT & ~filters.COMMAND, kirim_report_handler)],
             GANTI_FOTO: [MessageHandler(filters.PHOTO, ganti_foto_handler)],
             GANTI_AUDIO: [MessageHandler(filters.AUDIO | filters.Document.AUDIO, ganti_audio_handler)],
-            ADD_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_email_handler)],
+            ADD_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_email_handler)], # INI TADI YG KETINGGALAN
             ADD_PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_pass_handler)]
         },
         fallbacks=[CommandHandler('cancel', cancel)])
