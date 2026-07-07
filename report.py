@@ -14,8 +14,8 @@ FILE_CONFIG = "config.json"
 DEVELOPER_ID = 1008449341
 DEFAULT_PASSWORD = "hanania123"
 BOT_NAME = "BOT HANANIA REPORT"
-CURRENT_VERSION = "V8.7"
-TIMEZONE = pytz.timezone("Asia/Jakarta")
+CURRENT_VERSION = "V8.11"
+TIMEZONE = pytz.timezone("Asia/Jakarta") # UDAH BALIK KE WIB
 
 URL_VERSION = "https://raw.githubusercontent.com/Araa546/main/refs/heads/main/version.txt"
 URL_REPORT = "https://raw.githubusercontent.com/Araa546/main/refs/heads/main/report.py"
@@ -34,8 +34,8 @@ def load_config():
         "whitelist": [DEVELOPER_ID],
         "banned": [],
         "version": CURRENT_VERSION,
-        "maintenance_start": 23,
-        "maintenance_end": 8,
+        "maintenance_start": 23.5, # 23:50 WIB
+        "maintenance_end": 8.0, # 08:00 WIB
         "groups": {
             "BR": [{"email": "informationsecurity@blackrock.com", "subject": "Report of Telegram Account Impersonating BlackRock Support"}],
             "SF": [{"email": "contact@solflare.com", "subject": "Report of Telegram Account Impersonating Solflare Support"}],
@@ -58,40 +58,37 @@ def save_config(data):
 
 def is_maintenance():
     config = load_config()
-    now = datetime.datetime.now(TIMEZONE).hour
+    now = datetime.datetime.now(TIMEZONE)
+    now_float = now.hour + now.minute / 60.0 # biar bisa 23.50
     start = config["maintenance_start"]
     end = config["maintenance_end"]
-    if start > end: return now >= start or now < end
-    else: return start <= now < end
-
-async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id!= DEVELOPER_ID: return
-    msg = update.message or update.callback_query.message
-    await msg.reply_text("⏳ Baixando atualização do github...")
-    try:
-        r = requests.get(URL_REPORT, timeout=10)
-        with open("report.py", "w", encoding="utf-8") as f: f.write(r.text)
-        await msg.reply_text("✅ Atualização concluída! Reiniciando bot...")
-        os.execv(sys.executable, ['python'] + sys.argv)
-    except Exception as e: await msg.reply_text(f"❌ Falha ao atualizar: {e}")
+    if start > end: return now_float >= start or now_float < end
+    else: return start <= now_float < end
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config = load_config()
 
-    # MAINTENANCE BAHASA PORTUGIS
     if is_maintenance() and update.effective_user.id!= DEVELOPER_ID:
-        await update.message.reply_text("🛠️ BOT HANANIA ESTÁ EM MANUTENÇÃO\n\nPor favor, volte às 08:00 WIB\nObrigado 🙏")
+        now = datetime.datetime.now(TIMEZONE).strftime("%H:%M")
+        await update.message.reply_text(f"🛠️ BOT HANANIA ESTÁ EM MANUTENÇÃO\nHorário atual: {now} WIB\nPor favor, volte às 08:00 WIB\nObrigado 🙏")
         return ConversationHandler.END
 
-    if update.effective_user.id in config.get("banned", []):
+    await update.message.reply_text("🔒 Digite a Senha para continuar:")
+    return LOGIN
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    config = load_config()
+
+    if is_maintenance() and update.effective_user.id!= DEVELOPER_ID:
+        now = datetime.datetime.now(TIMEZONE).strftime("%H:%M")
+        await update.message.reply_text(f"🛠️ BOT HANANIA ESTÁ EM MANUTENÇÃO\nHorário atual: {now} WIB\nPor favor, volte às 08:00 WIB\nObrigado 🙏")
+        return ConversationHandler.END
+
+    if update.effective_user.id in config.get("banned", []): # BARIS 78 SELESAI DISINI
         await update.message.reply_text("🚫 Você foi banido."); return ConversationHandler.END
 
-    try:
-        await update.message.reply_photo(photo=config["foto_url"], caption=f"🔒 <b>{BOT_NAME} {CURRENT_VERSION}</b>\n\nEste Bot é Privado", parse_mode='HTML')
-        await update.message.reply_audio(audio=config["audio_url"])
-    except: pass
-
-    await update.message.reply_text("Digite a Senha para continuar:")
+    # INI LANJUTANNYA BARIS 79 DST
+    await update.message.reply_text("🔒 Digite a Senha para continuar:")
     return LOGIN
 
 async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -99,15 +96,21 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     password = update.message.text
     if hash_password(password) == config["bot_password_hash"]:
 
-        # BUTTON LEBIH BAGUS 2 KOLOM PT-BR
+        # KALAU BENER BARU MUNCUL FOTO + AUDIO + BUTTON
+        try:
+            await update.message.reply_photo(photo=config["foto_url"], caption=f"🔒 <b>{BOT_NAME} {CURRENT_VERSION}</b>\n\nBem-vindo!", parse_mode='HTML')
+            await update.message.reply_audio(audio=config["audio_url"])
+        except: pass
+
         keyboard = [
-            [InlineKeyboardButton("📨 Enviar Relatório", callback_data='menu_send'), InlineKeyboardButton("⚙️ Configurações", callback_data='menu_settings')],
+            [InlineKeyboardButton("📨 Enviar Relatório", callback_data='menu_send'), InlineKeyboardButton("➕ Adicionar Sender", callback_data='add_sender')],
+            [InlineKeyboardButton("📋 Meus Senders", callback_data='my_senders'), InlineKeyboardButton("⚙️ Configurações", callback_data='menu_settings')],
             [InlineKeyboardButton("📊 Status do Bot", callback_data='menu_status')]
         ]
         if update.effective_user.id == DEVELOPER_ID:
             keyboard.append([InlineKeyboardButton("👑 PAINEL DO DONO", callback_data='owner_panel')])
 
-        await update.message.reply_text(f"✅ Login bem-sucedido!\nBem-vindo ao {BOT_NAME}", reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_text("✅ Login bem-sucedido! Escolha um menu:", reply_markup=InlineKeyboardMarkup(keyboard))
         return ConversationHandler.END
     else:
         await update.message.reply_text("❌ Senha incorreta. Tente novamente:"); return LOGIN
@@ -120,15 +123,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🔄 Atualizar Bot", callback_data='update_bot'), InlineKeyboardButton("📷 Alterar Foto", callback_data='ganti_foto')],
             [InlineKeyboardButton("🎵 Alterar Áudio", callback_data='ganti_audio'), InlineKeyboardButton("⬅️ Voltar", callback_data='back_menu')]
         ]
-        await query.edit_message_text("👑 PAINEL DO DONO\n\nAlterar foto/áudio afeta TODOS OS USUÁRIOS", reply_markup=InlineKeyboardMarkup(keyboard))
-
+        await query.edit_message_text("👑 PAINEL DO DONO", reply_markup=InlineKeyboardMarkup(keyboard))
     elif query.data == 'update_bot' and user_id == DEVELOPER_ID: await update_bot(update, context)
     elif query.data == 'ganti_foto' and user_id == DEVELOPER_ID:
-        await query.edit_message_text("📷 Envie a nova foto. Afeta todos os usuários:"); return GANTI_FOTO
+        await query.edit_message_text("📷 Envie a nova foto:"); return GANTI_FOTO
     elif query.data == 'ganti_audio' and user_id == DEVELOPER_ID:
-        await query.edit_message_text("🎵 Envie o novo áudio. Afeta todos os usuários:"); return GANTI_AUDIO
+        await query.edit_message_text("🎵 Envie o novo áudio:"); return GANTI_AUDIO
     elif query.data == 'back_menu':
-        await query.edit_message_text("Menu Principal:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📨 Enviar Relatório", callback_data='menu_send')]]))
+        await query.edit_message_text("Menu Principal:")
 
 async def ganti_foto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id!= DEVELOPER_ID: return ConversationHandler.END
