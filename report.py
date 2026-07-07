@@ -15,88 +15,46 @@ DEVELOPER_ID = 1008449341
 DEFAULT_PASSWORD = "hanania123"
 BOT_NAME = "BOT HANANIA REPORT"
 CURRENT_VERSION = "V8.11"
-TIMEZONE = pytz.timezone("Asia/Jakarta") # UDAH BALIK KE WIB
+TIMEZONE = pytz.timezone("Asia/Jakarta")
 
-URL_VERSION = "https://raw.githubusercontent.com/Araa546/main/refs/heads/main/version.txt"
-URL_REPORT = "https://raw.githubusercontent.com/Araa546/main/refs/heads/main/report.py"
-
-LOGIN, GANTI_FOTO, GANTI_AUDIO = range(3)
+LOGIN, GANTI_FOTO, GANTI_AUDIO, ADD_SENDER, KIRIM_REPORT = range(5)
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def load_config():
-    default = {
-        "foto_url": "https://files.catbox.moe/qvonmj.jpg",
-        "audio_url": "https://files.catbox.moe/emfrvm.mp3",
-        "bot_password_hash": hash_password(DEFAULT_PASSWORD),
-        "senders": {},
-        "whitelist": [DEVELOPER_ID],
-        "banned": [],
-        "version": CURRENT_VERSION,
-        "maintenance_start": 23.5, # 23:50 WIB
-        "maintenance_end": 8.0, # 08:00 WIB
-        "groups": {
-            "BR": [{"email": "informationsecurity@blackrock.com", "subject": "Report of Telegram Account Impersonating BlackRock Support"}],
-            "SF": [{"email": "contact@solflare.com", "subject": "Report of Telegram Account Impersonating Solflare Support"}],
-            "BI": [{"email": "phishing@binance.com", "subject": "Report Phishing Telegram Account"}]
-        }
-    }
+    default = {"foto_url": "https://files.catbox.moe/qvonmj.jpg", "audio_url": "https://files.catbox.moe/emfrvm.mp3", "bot_password_hash": hash_password(DEFAULT_PASSWORD), "senders": {}, "whitelist": [DEVELOPER_ID], "banned": [], "version": CURRENT_VERSION, "maintenance_start": 23.5, "maintenance_end": 8.0, "groups": {"BR": [{"email": "informationsecurity@blackrock.com", "subject": "Report BlackRock"}], "SF": [{"email": "contact@solflare.com", "subject": "Report Solflare"}], "BI": [{"email": "phishing@binance.com", "subject": "Report Binance"}]}}
     if os.path.exists(FILE_CONFIG):
-        with open(FILE_CONFIG, 'r') as f:
-            data = json.load(f)
-            for key in default:
-                if key not in data: data[key] = default[key]
-            save_config(data)
-            return data
-    save_config(default)
-    return default
+        with open(FILE_CONFIG, 'r') as f: data = json.load(f)
+        for key in default:
+            if key not in data: data[key] = default[key]
+        save_config(data); return data
+    save_config(default); return default
 
 def save_config(data):
-    with open(FILE_CONFIG, 'w') as f:
-        json.dump(data, f, indent=2)
+    with open(FILE_CONFIG, 'w') as f: json.dump(data, f, indent=2)
 
 def is_maintenance():
     config = load_config()
     now = datetime.datetime.now(TIMEZONE)
-    now_float = now.hour + now.minute / 60.0 # biar bisa 23.50
-    start = config["maintenance_start"]
-    end = config["maintenance_end"]
+    now_float = now.hour + now.minute / 60.0
+    start = config["maintenance_start"]; end = config["maintenance_end"]
     if start > end: return now_float >= start or now_float < end
     else: return start <= now_float < end
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config = load_config()
-
     if is_maintenance() and update.effective_user.id!= DEVELOPER_ID:
         now = datetime.datetime.now(TIMEZONE).strftime("%H:%M")
-        await update.message.reply_text(f"🛠️ BOT HANANIA ESTÁ EM MANUTENÇÃO\nHorário atual: {now} WIB\nPor favor, volte às 08:00 WIB\nObrigado 🙏")
-        return ConversationHandler.END
-
-    await update.message.reply_text("🔒 Digite a Senha para continuar:")
-    return LOGIN
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    config = load_config()
-
-    if is_maintenance() and update.effective_user.id!= DEVELOPER_ID:
-        now = datetime.datetime.now(TIMEZONE).strftime("%H:%M")
-        await update.message.reply_text(f"🛠️ BOT HANANIA ESTÁ EM MANUTENÇÃO\nHorário atual: {now} WIB\nPor favor, volte às 08:00 WIB\nObrigado 🙏")
-        return ConversationHandler.END
-
-    if update.effective_user.id in config.get("banned", []): # BARIS 78 SELESAI DISINI
+        await update.message.reply_text(f"🛠️ BOT HANANIA ESTÁ EM MANUTENÇÃO\nHorário atual: {now} WIB\nPor favor, volte às 08:00 WIB\nObrigado 🙏"); return ConversationHandler.END
+    if update.effective_user.id in config.get("banned", []):
         await update.message.reply_text("🚫 Você foi banido."); return ConversationHandler.END
-
-    # INI LANJUTANNYA BARIS 79 DST
-    await update.message.reply_text("🔒 Digite a Senha para continuar:")
-    return LOGIN
+    await update.message.reply_text("🔒 Digite a Senha para continuar:"); return LOGIN
 
 async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config = load_config()
     password = update.message.text
     if hash_password(password) == config["bot_password_hash"]:
-
-        # KALAU BENER BARU MUNCUL FOTO + AUDIO + BUTTON
         try:
             await update.message.reply_photo(photo=config["foto_url"], caption=f"🔒 <b>{BOT_NAME} {CURRENT_VERSION}</b>\n\nBem-vindo!", parse_mode='HTML')
             await update.message.reply_audio(audio=config["audio_url"])
@@ -115,15 +73,37 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ Senha incorreta. Tente novamente:"); return LOGIN
 
+# INI YANG BIKIN BUTTON BISA DIPENCET
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query; await query.answer(); user_id = query.from_user.id
 
-    if query.data == 'owner_panel' and user_id == DEVELOPER_ID:
+    if query.data == 'menu_send':
+        await query.edit_message_text("📨 Para enviar relatório, escolha o grupo:\n\nBR - BlackRock\nSF - Solflare\nBI - Binance")
+
+    elif query.data == 'add_sender':
+        await query.edit_message_text("➕ Kirim format:\n`email|senha_app`\nContoh: `meuemail@gmail.com|abcd efgh ijkl mnop`", parse_mode='Markdown')
+
+    elif query.data == 'my_senders':
+        config = load_config()
+        if not config["senders"]: await query.edit_message_text("📋 Você ainda não tem Sender.")
+        else:
+            text = "📋 **Meus Senders:**\n\n" + "\n".join([f"- `{e}`" for e in config["senders"].keys()])
+            await query.edit_message_text(text, parse_mode='Markdown')
+
+    elif query.data == 'menu_settings':
+        await query.edit_message_text("⚙️ Configurações:\n\nEm breve...")
+
+    elif query.data == 'menu_status':
+        now = datetime.datetime.now(TIMEZONE).strftime("%H:%M")
+        await query.edit_message_text(f"📊 **Status do Bot**\n\nVersão: {CURRENT_VERSION}\nHorário: {now} WIB\nStatus: Online ✅", parse_mode='Markdown')
+
+    elif query.data == 'owner_panel' and user_id == DEVELOPER_ID:
         keyboard = [
             [InlineKeyboardButton("🔄 Atualizar Bot", callback_data='update_bot'), InlineKeyboardButton("📷 Alterar Foto", callback_data='ganti_foto')],
             [InlineKeyboardButton("🎵 Alterar Áudio", callback_data='ganti_audio'), InlineKeyboardButton("⬅️ Voltar", callback_data='back_menu')]
         ]
         await query.edit_message_text("👑 PAINEL DO DONO", reply_markup=InlineKeyboardMarkup(keyboard))
+
     elif query.data == 'update_bot' and user_id == DEVELOPER_ID: await update_bot(update, context)
     elif query.data == 'ganti_foto' and user_id == DEVELOPER_ID:
         await query.edit_message_text("📷 Envie a nova foto:"); return GANTI_FOTO
@@ -144,21 +124,30 @@ async def ganti_audio_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     config = load_config(); config["audio_url"] = url; save_config(config)
     await update.message.reply_text("✅ Áudio GLOBAL alterado com sucesso!"); return ConversationHandler.END
 
+async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id!= DEVELOPER_ID: return
+    msg = update.message or update.callback_query.message
+    await msg.reply_text("⏳ Baixando atualização do github...")
+    try:
+        r = requests.get("https://raw.githubusercontent.com/Araa546/main/refs/heads/main/report.py", timeout=10)
+        with open("report.py", "w", encoding="utf-8") as f: f.write(r.text)
+        await msg.reply_text("✅ Atualização concluída! Reiniciando bot...")
+        os.execv(sys.executable, ['python'] + sys.argv)
+    except Exception as e: await msg.reply_text(f"❌ Falha ao atualizar: {e}")
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ Cancelado."); context.user_data.clear(); return ConversationHandler.END
 
-async def update_bot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE): await update_bot(update, context)
-
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler('update', update_bot_cmd))
     conv_login = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={LOGIN: [MessageHandler(filters.TEXT & ~filters.COMMAND, login_handler)],
                 GANTI_FOTO: [MessageHandler(filters.PHOTO, ganti_foto_handler)],
                 GANTI_AUDIO: [MessageHandler(filters.AUDIO | filters.Document.AUDIO, ganti_audio_handler)]},
         fallbacks=[CommandHandler('cancel', cancel)])
-    app.add_handler(conv_login); app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(conv_login)
+    app.add_handler(CallbackQueryHandler(button_handler)) # INI PENTING
     print(f"{BOT_NAME} {CURRENT_VERSION} Rodando..."); app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__": main()
