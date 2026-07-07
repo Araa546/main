@@ -1,14 +1,11 @@
- import smtplib
+import smtplib
 import json
 import os
 import hashlib
 import requests
-import io
 import sys
 import datetime
 import pytz
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
@@ -17,7 +14,7 @@ FILE_CONFIG = "config.json"
 DEVELOPER_ID = 1008449341
 DEFAULT_PASSWORD = "hanania123"
 BOT_NAME = "BOT HANANIA REPORT"
-CURRENT_VERSION = "V8.4"
+CURRENT_VERSION = "V8.5"
 TIMEZONE = pytz.timezone("Asia/Jakarta")
 
 URL_VERSION = "https://raw.githubusercontent.com/Araa546/main/refs/heads/main/version.txt"
@@ -30,8 +27,8 @@ def hash_password(password):
 
 def load_config():
     default = {
-        "foto_url": "https://files.catbox.moe/qvonmj.jpg", # FOTO GLOBAL
-        "audio_url": "https://files.catbox.moe/emfrvm.mp3", # AUDIO GLOBAL
+        "foto_url": "https://files.catbox.moe/qvonmj.jpg",
+        "audio_url": "https://files.catbox.moe/emfrvm.mp3",
         "bot_password_hash": hash_password(DEFAULT_PASSWORD),
         "senders": {},
         "whitelist": [DEVELOPER_ID],
@@ -85,13 +82,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     if update.effective_user.id in config.get("banned", []):
         await update.message.reply_text("🚫 Você foi banido."); return ConversationHandler.END
-
-    # FOTO + AUDIO GLOBAL DARI CONFIG
     try:
         await update.message.reply_photo(photo=config["foto_url"], caption=f"🔒 <b>{BOT_NAME} {CURRENT_VERSION}</b>\n\nEste Bot é Privado", parse_mode='HTML')
         await update.message.reply_audio(audio=config["audio_url"])
     except: pass
-
     await update.message.reply_text("Digite a Senha untuk continuar:")
     return LOGIN
 
@@ -109,33 +103,28 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query; await query.answer(); user_id = query.from_user.id
-
     if query.data == 'owner_panel' and user_id == DEVELOPER_ID:
         keyboard = [[InlineKeyboardButton("🔄 Update Bot", callback_data='update_bot')],
                     [InlineKeyboardButton("📷 Ganti Foto GLOBAL", callback_data='ganti_foto')],
-                    [InlineKeyboardButton("🎵 Ganti Audio GLOBAL", callback_data='ganti_audio')],
-                    [InlineKeyboardButton("⬅️ Back", callback_data='back_menu')]]
-        await query.edit_message_text("👑 OWNER PANEL\n\nNote: Ganti foto/audio akan berlaku untuk SEMUA USER", reply_markup=InlineKeyboardMarkup(keyboard))
-
+                    [InlineKeyboardButton("🎵 Ganti Audio GLOBAL", callback_data='ganti_audio')]]
+        await query.edit_message_text("👑 OWNER PANEL\n\nNote: Ganti foto/audio berlaku untuk SEMUA USER", reply_markup=InlineKeyboardMarkup(keyboard))
     elif query.data == 'update_bot' and user_id == DEVELOPER_ID: await update_bot(update, context)
     elif query.data == 'ganti_foto' and user_id == DEVELOPER_ID:
-        await query.edit_message_text("📷 Kirim foto baru. Foto ini akan dipakai semua user:"); return GANTI_FOTO
+        await query.edit_message_text("📷 Kirim foto baru. Berlaku untuk semua user:"); return GANTI_FOTO
     elif query.data == 'ganti_audio' and user_id == DEVELOPER_ID:
-        await query.edit_message_text("🎵 Kirim audio baru. Audio ini akan dipakai semua user:"); return GANTI_AUDIO
+        await query.edit_message_text("🎵 Kirim audio baru. Berlaku untuk semua user:"); return GANTI_AUDIO
 
 async def ganti_foto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id!= DEVELOPER_ID: return ConversationHandler.END
     photo = update.message.photo[-1]; file = await photo.get_file(); url = file.file_path
-    config = load_config(); config["foto_url"] = url; save_config(config) # SIMPAN GLOBAL
-    await update.message.reply_text("✅ Foto GLOBAL berhasil diganti!\nSemua user akan lihat foto baru pas /start")
-    return ConversationHandler.END
+    config = load_config(); config["foto_url"] = url; save_config(config)
+    await update.message.reply_text("✅ Foto GLOBAL berhasil diganti!"); return ConversationHandler.END
 
 async def ganti_audio_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id!= DEVELOPER_ID: return ConversationHandler.END
     audio = update.message.audio or update.message.document; file = await audio.get_file(); url = file.file_path
-    config = load_config(); config["audio_url"] = url; save_config(config) # SIMPAN GLOBAL
-    await update.message.reply_text("✅ Audio GLOBAL berhasil diganti!\nSemua user akan dengar audio baru pas /start")
-    return ConversationHandler.END
+    config = load_config(); config["audio_url"] = url; save_config(config)
+    await update.message.reply_text("✅ Audio GLOBAL berhasil diganti!"); return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ Dibatalkan."); context.user_data.clear(); return ConversationHandler.END
