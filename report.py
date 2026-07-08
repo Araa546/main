@@ -18,7 +18,7 @@ BOT_NAME = "BOT HANANIA REPORT"
 CURRENT_VERSION = "V11.0"
 TIMEZONE = pytz.timezone("Asia/Jakarta")
 
-LOGIN, KIRIM_REPORT, GANTI_FOTO, GANTI_AUDIO, ADD_EMAIL, ADD_PASS = range(6)
+LOGIN, MENU, KIRIM_REPORT, GANTI_FOTO, GANTI_AUDIO, ADD_EMAIL, ADD_PASS = range(7) # TAMBAH STATE MENU
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -80,22 +80,20 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         username = update.effective_user.username or "User"
         try:
-            # FOTO ANTI SAVE + TAG FAKE
             await update.message.reply_photo(
                 photo=config["foto_url"],
                 caption=f"✨ <b>{BOT_NAME} {CURRENT_VERSION}</b> ✨\n\n👋 Selamat Datang @{username}\nID: <code>{update.effective_user.id}</code>\n\nSilakan pilih menu dibawah:",
                 parse_mode='HTML',
                 reply_markup=InlineKeyboardMarkup(keyboard),
-                protect_content=True # GABISA DI SAVE/FORWARD
+                protect_content=True
             )
             await asyncio.sleep(0.3)
             await update.message.reply_audio(audio=config["audio_url"])
         except: pass
-        return ConversationHandler.END
+        return MENU # INI JANGAN END, HARUS KE STATE MENU BIAR BUTTON HIDUP
     else:
         await update.message.reply_text("❌ Kata sandi salah. Ketik /start untuk coba lagi"); return ConversationHandler.END
 
-# FIX ADD EMAIL
 async def add_email_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📧 <b>Langkah 1/2</b>\n\nKirim Email kamu dulu:", parse_mode='HTML')
     return ADD_EMAIL
@@ -117,9 +115,9 @@ async def add_pass_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config["senders"][email] = app_pass
     save_config(config)
 
-    await update.message.delete() # hapus password
-    await update.message.reply_text(f"✅ <b>Sender Berhasil Ditambahkan!</b>\n\nEmail: <code>{email}</code>\nStatus: Aktif\n\nGunakan /start untuk ke menu", parse_mode='HTML')
-    return ConversationHandler.END
+    await update.message.delete()
+    await update.message.reply_text(f"✅ <b>Sender Berhasil Ditambahkan!</b>\n\nEmail: <code>{email}</code>\nStatus: Aktif", parse_mode='HTML')
+    return MENU # BALIK KE MENU
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query; await query.answer(); user_id = query.from_user.id
@@ -131,6 +129,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("⬅️ Kembali ke Menu", callback_data='back_menu')]
         ]
         await query.edit_message_text("📨 <b>Pilih Grup Untuk Laporan</b>", parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        return MENU
 
     elif query.data.startswith('grupo_'):
         grupo = query.data.split('_')[1]
@@ -140,17 +139,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == 'add_sender':
         await query.edit_message_text("➕ Gunakan command /addemail untuk tambah sender baru")
+        return MENU
 
     elif query.data == 'my_senders':
         config = load_config()
-        if not config["senders"]: await query.edit_message_text("📋 Kamu belum punya Sender.\nGunakan /addemail")
-        else:
-            text = "📋 <b>Sender Saya:</b>\n\n" + "\n".join([f"• <code>{e}</code>" for e in config["senders"].keys()])
-            await query.edit_message_text(text, parse_mode='HTML')
+        if not config["senders"]: text = "📋 Kamu belum punya Sender.\nGunakan /addemail"
+        else: text = "📋 <b>Sender Saya:</b>\n\n" + "\n".join([f"• <code>{e}</code>" for e in config["senders"].keys()])
+        await query.edit_message_text(text, parse_mode='HTML')
+        return MENU
 
     elif query.data == 'menu_status':
         now = datetime.datetime.now(TIMEZONE).strftime("%H:%M")
         await query.edit_message_text(f"📊 <b>Status Bot</b>\n\nVersi: {CURRENT_VERSION}\nJam: {now} WIB\nStatus: Online ✅", parse_mode='HTML')
+        return MENU
 
     elif query.data == 'owner_panel' and user_id == DEVELOPER_ID:
         keyboard = [
@@ -158,8 +159,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🎵 Ganti Audio", callback_data='ganti_audio'), InlineKeyboardButton("⬅️ Kembali", callback_data='back_menu')]
         ]
         await query.edit_message_text("👑 <b>PANEL OWNER</b> ✨", parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+        return MENU
 
-    elif query.data == 'update_bot' and user_id == DEVELOPER_ID: await update_bot(update, context)
+    elif query.data == 'update_bot' and user_id == DEVELOPER_ID:
+        await update_bot(update, context)
+        return MENU
     elif query.data == 'ganti_foto' and user_id == DEVELOPER_ID:
         await query.edit_message_text("📷 Kirim foto baru:"); return GANTI_FOTO
     elif query.data == 'ganti_audio' and user_id == DEVELOPER_ID:
@@ -167,28 +171,31 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'back_menu':
         keyboard = [[InlineKeyboardButton("📨 Kirim Laporan", callback_data='menu_send')]]
         await query.edit_message_text("Menu Utama:", reply_markup=InlineKeyboardMarkup(keyboard))
+        return MENU
 
 async def kirim_report_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     grupo = context.user_data.get('grupo')
     target = update.message.text
-    await update.message.delete() # AUTO HAPUS
-
+    await update.message.delete()
     await update.message.reply_text(f"✅ <b>Laporan Terkirim!</b>\n\nGrup: {grupo}\nTarget: <code>{target}</code>\nStatus: Menunggu diproses", parse_mode='HTML')
-    return ConversationHandler.END
+    return MENU
 
 async def ganti_foto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id!= DEVELOPER_ID: return ConversationHandler.END
+    if update.effective_user.id!= DEVELOPER_ID: return MENU
     photo = update.message.photo[-1]; file = await photo.get_file(); url = file.file_path
     config = load_config(); config["foto_url"] = url; save_config(config)
-    await update.message.reply_text("✅ Foto berhasil diubah untuk semua user!"); return ConversationHandler.END
+    await update.message.reply_text("✅ Foto berhasil diubah untuk semua user!"); return MENU
 
 async def ganti_audio_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id!= DEVELOPER_ID: return ConversationHandler.END
+    if update.effective_user.id!= DEVELOPER_ID: return MENU
     audio = update.message.audio or update.message.document; file = await audio.get_file(); url = file.file_path
     config = load_config(); config["audio_url"] = url; save_config(config)
-    await update.message.reply_text("✅ Audio berhasil diubah untuk semua user!"); return ConversationHandler.END
+    await update.message.reply_text("✅ Audio berhasil diubah untuk semua user!"); return MENU
 
-async def update_bot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE): await update_bot(update, context)
+async def update_bot_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update_bot(update, context)
+    return MENU
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ Dibatalkan."); context.user_data.clear(); return ConversationHandler.END
 
@@ -201,15 +208,15 @@ def main():
         entry_points=[CommandHandler('start', start)],
         states={
             LOGIN: [MessageHandler(filters.TEXT & ~filters.COMMAND, login_handler)],
+            MENU: [CallbackQueryHandler(button_handler)], # INI PENTING: BUTTON CUMA HIDUP DI STATE MENU
             KIRIM_REPORT: [MessageHandler(filters.TEXT & ~filters.COMMAND, kirim_report_handler)],
             GANTI_FOTO: [MessageHandler(filters.PHOTO, ganti_foto_handler)],
             GANTI_AUDIO: [MessageHandler(filters.AUDIO | filters.Document.AUDIO, ganti_audio_handler)],
-            ADD_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_email_handler)], # INI TADI YG KETINGGALAN
+            ADD_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_email_handler)],
             ADD_PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_pass_handler)]
         },
         fallbacks=[CommandHandler('cancel', cancel)])
     app.add_handler(conv)
-    app.add_handler(CallbackQueryHandler(button_handler))
     print(f"{BOT_NAME} {CURRENT_VERSION} Jalan..."); app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__": main()
