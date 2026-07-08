@@ -14,11 +14,11 @@ BOT_TOKEN = "8839353520:AAFAnpI2bw-1Eqi2UOh4vzk8txWiXkV8FYo"
 FILE_CONFIG = "config.json"
 DEVELOPER_ID = 1008449341
 DEFAULT_PASSWORD = "hanania123"
-BOT_NAME = "BOT HANANIA REPORT"
-CURRENT_VERSION = "V11.0"
+BOT_NAME = "HANANIA REPORT" # UDAH DIGANTI
+CURRENT_VERSION = "V12.5"
 TIMEZONE = pytz.timezone("Asia/Jakarta")
 
-LOGIN, MENU, KIRIM_REPORT, GANTI_FOTO, GANTI_AUDIO, ADD_EMAIL, ADD_PASS = range(7) # TAMBAH STATE MENU
+LOGIN, MENU, KIRIM_REPORT, GANTI_FOTO, GANTI_AUDIO, ADD_EMAIL, ADD_PASS = range(7)
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -89,8 +89,8 @@ async def login_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await asyncio.sleep(0.3)
             await update.message.reply_audio(audio=config["audio_url"])
-        except: pass
-        return MENU # INI JANGAN END, HARUS KE STATE MENU BIAR BUTTON HIDUP
+        except Exception as e: print(e)
+        return MENU
     else:
         await update.message.reply_text("❌ Kata sandi salah. Ketik /start untuk coba lagi"); return ConversationHandler.END
 
@@ -110,14 +110,12 @@ async def add_email_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def add_pass_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     app_pass = update.message.text
     email = context.user_data['temp_email']
-
     config = load_config()
     config["senders"][email] = app_pass
     save_config(config)
-
     await update.message.delete()
     await update.message.reply_text(f"✅ <b>Sender Berhasil Ditambahkan!</b>\n\nEmail: <code>{email}</code>\nStatus: Aktif", parse_mode='HTML')
-    return MENU # BALIK KE MENU
+    return MENU
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query; await query.answer(); user_id = query.from_user.id
@@ -172,6 +170,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [[InlineKeyboardButton("📨 Kirim Laporan", callback_data='menu_send')]]
         await query.edit_message_text("Menu Utama:", reply_markup=InlineKeyboardMarkup(keyboard))
         return MENU
+    return MENU
 
 async def kirim_report_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     grupo = context.user_data.get('grupo')
@@ -201,14 +200,17 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
+
+    # KUNCINYA: CallbackQueryHandler HARUS di luar ConversationHandler biar global
     app.add_handler(CommandHandler('update', update_bot_cmd))
     app.add_handler(CommandHandler('addemail', add_email_start))
+    app.add_handler(CallbackQueryHandler(button_handler)) # PINDAH KE SINI
 
     conv = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
             LOGIN: [MessageHandler(filters.TEXT & ~filters.COMMAND, login_handler)],
-            MENU: [CallbackQueryHandler(button_handler)], # INI PENTING: BUTTON CUMA HIDUP DI STATE MENU
+            MENU: [], # MENU KOSONG, CUMA BUAT NAMPUNG STATE
             KIRIM_REPORT: [MessageHandler(filters.TEXT & ~filters.COMMAND, kirim_report_handler)],
             GANTI_FOTO: [MessageHandler(filters.PHOTO, ganti_foto_handler)],
             GANTI_AUDIO: [MessageHandler(filters.AUDIO | filters.Document.AUDIO, ganti_audio_handler)],
